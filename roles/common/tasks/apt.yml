@@ -1,0 +1,27 @@
+---
+- name: Install docker by remote APT repo
+  apt:
+    name:
+      - "docker.io"
+      - "python3"
+      - "python3-pip"
+      - "python3-setuptools"
+      - "virtualenv"
+      - "unzip"
+    #update_cache: yes
+    state: present
+  when: package_source == "internet"
+
+- name: Install docker by local files
+  block:
+    - name: Copy docker package files to remote server
+      copy:
+        src: files/
+        dest: /tmp/
+
+    - name: Install docker by DEB file
+      apt:
+        deb: /tmp/{{ item.value }}
+        state: present
+      with_dict: "{{ package_file.apt }}"
+  when: package_source == "local"

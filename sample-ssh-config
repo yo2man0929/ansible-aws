@@ -1,0 +1,6 @@
+Host *
+    User ubuntu
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+    IdentityFile ./sample.pem
+

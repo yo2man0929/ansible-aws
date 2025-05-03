@@ -1,0 +1,15 @@
+---
+# package_source:
+#   - local: install package from local deb files
+#   - internet: install package from APT repository
+package_source: "local"
+package_file: 
+  apt:
+    docker-ce: "docker-ce_20.10.9~3-0~ubuntu-bionic_amd64.deb"
+    docker-ce-cli: "docker-ce-cli_20.10.9~3-0~ubuntu-bionic_amd64.deb"
+    containerd.io: "containerd.io_1.4.9-1_amd64.deb"
+    unzip: "unzip_6.0-21ubuntu1.1_amd64.deb"
+    pip3: "python3-pip_20.0.2-5ubuntu1.6_all.deb"
+  python:
+    docker: "docker-5.0.3-py2.py3-none-any.whl"
+

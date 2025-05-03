@@ -1,0 +1,8 @@
+---
+# Optional variables for prometheus_monitoring role
+
+# Command to fetch instance metadata (different providers might need different commands)
+instance_metadata_cmd: "hostname"
+
+# Set this to true to force recreation of the stack
+force_recreate: false 

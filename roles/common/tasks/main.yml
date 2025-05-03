@@ -1,0 +1,24 @@
+---
+- import_tasks: apt.yml
+  become: true
+  when: ansible_pkg_mgr == "apt"
+
+- name: Prevent specific packages from being upgraded
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  with_items:
+    - "containerd.io"
+    - "docker-ce"
+    - "docker-ce-cli"
+    - "docker.io"
+
+- name: Install Docker SDK for Python from PyPi
+  pip:
+    name: docker
+  when: package_source == "internet"
+
+- name: Install Docker SDK for Python from local
+  pip:
+    name: file:///tmp/{{ package_file.python.docker }}
+  when: package_source == "local"

@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  node-exporter:
+    image: prom/node-exporter:{{ node_exporter_version }}
+    container_name: node-exporter
+    user: nobody
+    restart: unless-stopped
+    ports:
+      - "{{ node_exporter_port }}:9100"
+    volumes:
+      - /:/host:ro,rslave
+    command: ["--path.rootfs=/host"]
+    deploy:
+      resources:
+        limits:
+          memory: {{ node_exporter_memory_limit }}
+          cpus: '{{ node_exporter_cpu_limit }}'
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9100/metrics"]
+      interval: {{ health_check_interval }}
+      timeout: {{ health_check_timeout }}
+      retries: {{ health_check_retries }}
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:{{ cadvisor_version }}
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "{{ cadvisor_port }}:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    deploy:
+      resources:
+        limits:
+          memory: {{ cadvisor_memory_limit }}
+          cpus: '{{ cadvisor_cpu_limit }}'
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: {{ health_check_interval }}
+      timeout: {{ health_check_timeout }}
+      retries: {{ health_check_retries }}
+
+  prometheus-agent:
+    image: prom/prometheus:{{ prometheus_version }}
+    container_name: prometheus-agent
+    user: nobody
+    restart: unless-stopped
+    ports:
+      - "{{ prometheus_port }}:9090"
+    volumes:
+      - {{ prometheus_config_dir }}:/etc/prometheus
+      - {{ prometheus_data_dir }}:/prometheus
+      - ./prometheus-entrypoint.sh:/entrypoint.sh:ro
+    deploy:
+      resources:
+        limits:
+          memory: {{ prometheus_memory_limit }}
+          cpus: '{{ prometheus_cpu_limit }}'
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/metrics || exit 1"]
+      interval: {{ health_check_interval }}
+      timeout: {{ health_check_timeout }}
+      retries: {{ health_check_retries }}
+      start_period: 30s
+    entrypoint: ["/bin/sh", "/entrypoint.sh"] 

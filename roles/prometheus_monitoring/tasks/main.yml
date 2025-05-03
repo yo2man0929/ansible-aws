@@ -1,0 +1,174 @@
+---
+# Main tasks for prometheus_monitoring role
+
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Fail if Docker is not installed
+  fail:
+    msg: "Docker is not installed on the target machine. Please install Docker first."
+  when: docker_check.rc != 0
+
+- name: Check if Docker Compose is installed
+  command: docker compose version
+  register: docker_compose_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Fail if Docker Compose is not installed
+  fail:
+    msg: "Docker Compose is not installed on the target machine. Please install Docker Compose first."
+  when: docker_compose_check.rc != 0
+
+- name: Check if Docker Compose version is compatible
+  shell: docker compose version | grep -o "v[0-9]*\.[0-9]*\.[0-9]*" | head -1
+  register: docker_compose_version_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  when: docker_compose_check.rc == 0
+
+- name: Warn if Docker Compose version is lower than recommended
+  debug:
+    msg: "Warning: Docker Compose version {{ docker_compose_version_check.stdout }} is lower than recommended {{ docker_compose_version }}. Consider upgrading."
+  when: docker_compose_check.rc == 0 and docker_compose_version_check.stdout is version(docker_compose_version, '<')
+
+- name: Check if container node-exporter is already running
+  shell: docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -q '^node-exporter$'
+  register: node_exporter_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Check if container cadvisor is already running
+  shell: docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -q '^cadvisor$'
+  register: cadvisor_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Check if container prometheus-agent is already running
+  shell: docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -q '^prometheus-agent$'
+  register: prometheus_agent_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Ensure installation directory exists
+  file:
+    path: "{{ install_dir }}"
+    state: directory
+    mode: '0755'
+  become: "{{ ansible_connection != 'local' }}"
+
+- name: Ensure Prometheus configuration directory exists
+  file:
+    path: "{{ prometheus_config_dir }}"
+    state: directory
+    mode: '0755'
+  become: "{{ ansible_connection != 'local' }}"
+
+- name: Ensure Prometheus data directory exists
+  file:
+    path: "{{ prometheus_data_dir }}"
+    state: directory
+    mode: '0755'
+  become: "{{ ansible_connection != 'local' }}"
+
+- name: Create prometheus-entrypoint.sh script
+  template:
+    src: prometheus-entrypoint.sh.j2
+    dest: "{{ install_dir }}/prometheus-entrypoint.sh"
+    mode: '0755'
+  become: "{{ ansible_connection != 'local' }}"
+  notify: Restart Prometheus monitoring stack
+
+- name: Create docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ install_dir }}/docker-compose.yml"
+    mode: '0644'
+  become: "{{ ansible_connection != 'local' }}"
+  notify: Restart Prometheus monitoring stack
+
+- name: Stop existing containers if running and force recreate is requested
+  command: docker compose down
+  args:
+    chdir: "{{ install_dir }}"
+  become: "{{ ansible_connection != 'local' }}"
+  when: >
+    (node_exporter_check.rc == 0 or cadvisor_check.rc == 0 or prometheus_agent_check.rc == 0) and
+    (force_recreate | default(false))
+
+- name: Start Prometheus monitoring stack
+  command: docker compose up -d
+  args:
+    chdir: "{{ install_dir }}"
+  become: "{{ ansible_connection != 'local' }}"
+  when: >
+    node_exporter_check.rc != 0 or 
+    cadvisor_check.rc != 0 or 
+    prometheus_agent_check.rc != 0 or
+    (force_recreate | default(false))
+
+- name: Verify node-exporter is running
+  uri:
+    url: "http://localhost:{{ node_exporter_port }}/metrics"
+    status_code: 200
+  register: node_exporter_status
+  retries: 5
+  delay: 10
+  until: node_exporter_status.status == 200
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags: verify
+
+- name: Verify cadvisor is running
+  uri:
+    url: "http://localhost:{{ cadvisor_port }}/healthz"
+    status_code: 200
+  register: cadvisor_status
+  retries: 5
+  delay: 10
+  until: cadvisor_status.status == 200
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags: verify
+
+- name: Wait for prometheus-agent to initialize
+  wait_for:
+    host: localhost
+    port: "{{ prometheus_port }}"
+    timeout: 60
+  tags: verify
+
+- name: Verify prometheus-agent is running
+  uri:
+    url: "http://localhost:{{ prometheus_port }}/metrics"
+    status_code: 200
+    validate_certs: no
+    timeout: 30
+  register: prometheus_status
+  retries: 10
+  delay: 15
+  until: prometheus_status.status == 200
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags: verify
+
+- name: Report service status
+  debug:
+    msg: |
+      Service Status:
+      - Node Exporter: {{ 'Running' if node_exporter_status is defined and node_exporter_status.status|default(0) == 200 else 'Failed' }}
+      - cAdvisor: {{ 'Running' if cadvisor_status is defined and cadvisor_status.status|default(0) == 200 else 'Failed' }}
+      - Prometheus Agent: {{ 'Running' if prometheus_status is defined and prometheus_status.status|default(0) == 200 else 'Failed' }}
+  tags: verify 

@@ -1,0 +1,27 @@
+---
+# Playbook to deploy Prometheus monitoring with Node Exporter and cAdvisor
+# Example usage:
+#   ansible-playbook -i inventory.ini prometheus-monitoring-playbook.yml
+#   ansible-playbook -i inventory.ini prometheus-monitoring-playbook.yml --tags "setup"
+#   ansible-playbook -i inventory.ini prometheus-monitoring-playbook.yml --extra-vars "force_recreate=true"
+
+
+
+- name: Deploy local development monitoring
+  hosts: localhost
+  become: false
+  vars:
+    # Local installation without remote write
+    
+    install_dir: "./prometheus-monitoring-local"
+    prometheus_remote_write_url: "https://prometheus-prod.example.com/api/v1/write"
+    
+    # Force recreation on updates
+    force_recreate: false
+  roles:
+    - role: prometheus_monitoring
+  tags:
+    - monitoring
+    - prometheus
+    - development
+    - local 

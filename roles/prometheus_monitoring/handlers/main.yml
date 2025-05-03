@@ -1,0 +1,11 @@
+---
+# Handlers for prometheus_monitoring role
+
+- name: Restart Prometheus monitoring stack
+  shell: |
+    docker compose down
+    sleep 5
+    docker compose up -d
+  args:
+    chdir: "{{ install_dir }}"
+  become: "{{ ansible_connection != 'local' }}" 
