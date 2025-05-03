@@ -45,15 +45,6 @@ ansible-playbook playbooks/ssm_ping.yaml -i inventory/inventory.ini
 ansible-playbook playbooks/ssm_ping.yaml -i inventory/inventory.ini -l aws-instance-1
 ```
 
-### Deploying Monitoring Stack
-
-```bash
-# Deploy Prometheus monitoring stack
-ansible-playbook playbooks/playbook_prometheus_monitoring.yml -i inventory/inventory.ini
-
-# Deploy with extra variables
-ansible-playbook playbooks/playbook_prometheus_monitoring.yml -i inventory/inventory.ini -e "node_exporter_port=9100"
-```
 
 ## Monitoring Stack
 
