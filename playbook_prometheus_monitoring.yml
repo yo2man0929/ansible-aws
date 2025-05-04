@@ -25,3 +25,4 @@
     - prometheus
     - development
     - local 
+  strategy: free 

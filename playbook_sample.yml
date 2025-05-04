@@ -7,3 +7,4 @@
         cwa_conf_json_file_content: "{{ lookup('file', 'roles/amazon_cloudwatch_agent/files/cloudwatch_config.json') | from_json }}"
         cwa_agent_mode: "ec2"
         cwa_use_credentials: false
+    
