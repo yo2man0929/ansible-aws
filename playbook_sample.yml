@@ -1,6 +1,7 @@
 ---
 - name: Install CloudWatch agent on Sample servers
   hosts: all
+  become: yes 
   roles:
     - role: christiangda.amazon_cloudwatch_agent
       vars:

@@ -11,8 +11,8 @@ hostnames:
 # Prevent duplicate hosts in inventory
 allow_duplicated_hosts: false
 filters:
-  - tag:Role: "*" 
-  - instance-state-name: running
+  #tag:Role: "*" 
+  instance-state-name: running
 
 exclude_filters:
   - tag:karpenter.sh/nodepool:
@@ -26,6 +26,8 @@ keyed_groups:
     prefix: env
   - key: tags['Project']
     prefix: project
+  - key: private_ip_address
+    prefix: ip
 
 compose:
   # Use the private IP address to connect to the host
