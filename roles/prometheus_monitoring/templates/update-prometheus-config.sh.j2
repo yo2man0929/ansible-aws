@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -e
+
+# Use full absolute path instead of relying on ~ expansion
+CONFIG_FILE="{{ prometheus_config_dir }}/prometheus.yml"
+
+echo "Collecting EC2 metadata and updating Prometheus configuration..."
+
+# Get EC2 metadata
+INSTANCE_ID=$(curl -s --connect-timeout 3 http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo "unknown")
+INSTANCE_TYPE=$(curl -s --connect-timeout 3 http://169.254.169.254/latest/meta-data/instance-type 2>/dev/null || echo "unknown")
+AVAILABILITY_ZONE=$(curl -s --connect-timeout 3 http://169.254.169.254/latest/meta-data/placement/availability-zone 2>/dev/null || echo "unknown")
+
+# For instance name, use hostname if tag is not available
+# The /tags/instance/Name endpoint might not be available in all EC2 instances
+INSTANCE_NAME_RESPONSE=$(curl -s --connect-timeout 3 http://169.254.169.254/latest/meta-data/tags/instance/Name 2>/dev/null || echo "")
+if [[ "$INSTANCE_NAME_RESPONSE" == *"<!DOCTYPE"* ]] || [[ "$INSTANCE_NAME_RESPONSE" == *"<html"* ]] || [[ -z "$INSTANCE_NAME_RESPONSE" ]]; then
+    # If we got an HTML error or empty response, fall back to hostname
+    INSTANCE_NAME=$(hostname || echo "$INSTANCE_ID")
+    echo "Instance name tag not available, using hostname instead"
+else
+    INSTANCE_NAME="$INSTANCE_NAME_RESPONSE"
+fi
+
+echo "Retrieved EC2 metadata:"
+echo "- Instance ID: $INSTANCE_ID"
+echo "- Instance Type: $INSTANCE_TYPE"
+echo "- Availability Zone: $AVAILABILITY_ZONE"
+echo "- Instance Name: $INSTANCE_NAME"
+
+# Check if configuration file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: Prometheus configuration file does not exist: $CONFIG_FILE"
+    echo "Current directory: $(pwd)"
+    echo "Directory listing of $(dirname "$CONFIG_FILE"):"
+    ls -la "$(dirname "$CONFIG_FILE")" || echo "Directory does not exist"
+    exit 1
+fi
+
+# Create escaped versions of the variables for sed
+INSTANCE_ID_ESC=$(echo "$INSTANCE_ID" | sed 's/[\/&]/\\&/g')
+INSTANCE_TYPE_ESC=$(echo "$INSTANCE_TYPE" | sed 's/[\/&]/\\&/g')
+AVAILABILITY_ZONE_ESC=$(echo "$AVAILABILITY_ZONE" | sed 's/[\/&]/\\&/g')
+INSTANCE_NAME_ESC=$(echo "$INSTANCE_NAME" | sed 's/[\/&]/\\&/g')
+
+# Update placeholders in the configuration file
+sed -i "s/INSTANCE_ID_PLACEHOLDER/$INSTANCE_NAME_ESC/g" "$CONFIG_FILE"
+sed -i "s/INSTANCE_TYPE_PLACEHOLDER/$INSTANCE_TYPE_ESC/g" "$CONFIG_FILE"
+sed -i "s/AVAILABILITY_ZONE_PLACEHOLDER/$AVAILABILITY_ZONE_ESC/g" "$CONFIG_FILE"
+
+echo "Prometheus configuration file updated: $CONFIG_FILE" 

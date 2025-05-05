@@ -3,9 +3,9 @@
 
 - name: Restart Prometheus monitoring stack
   shell: |
-    docker compose down
+    docker compose -p prometheus down -v
     sleep 5
-    docker compose up -d
+    docker compose -p prometheus up -d
   args:
     chdir: "{{ install_dir }}"
-  become: "{{ ansible_connection != 'local' }}" 
+  become: no

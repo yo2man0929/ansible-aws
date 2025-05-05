@@ -1,35 +1,36 @@
 version: '3.8'
+name: prometheus
 
 services:
   node-exporter:
-    image: prom/node-exporter:{{ node_exporter_version }}
+    image: prom/node-exporter:v1.8.1
     container_name: node-exporter
     user: nobody
     restart: unless-stopped
     ports:
-      - "{{ node_exporter_port }}:9100"
+      - "9100:9100"
     volumes:
       - /:/host:ro,rslave
     command: ["--path.rootfs=/host"]
     deploy:
       resources:
         limits:
-          memory: {{ node_exporter_memory_limit }}
-          cpus: '{{ node_exporter_cpu_limit }}'
+          memory: 256M
+          cpus: '0.5'
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9100/metrics"]
-      interval: {{ health_check_interval }}
-      timeout: {{ health_check_timeout }}
-      retries: {{ health_check_retries }}
+      test: ["CMD", "curl", "-f", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:{{ cadvisor_version }}
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: cadvisor
     restart: unless-stopped
     ports:
-      - "{{ cadvisor_port }}:8080"
+      - "8080:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -38,27 +39,28 @@ services:
     deploy:
       resources:
         limits:
-          memory: {{ cadvisor_memory_limit }}
-          cpus: '{{ cadvisor_cpu_limit }}'
+          memory: 512M
+          cpus: '0.5'
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
-      interval: {{ health_check_interval }}
-      timeout: {{ health_check_timeout }}
-      retries: {{ health_check_retries }}
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   prometheus-agent:
-    image: prom/prometheus:{{ prometheus_version }}
+    image: prom/prometheus:v2.52.0
     container_name: prometheus-agent
-    user: nobody
     restart: unless-stopped
     ports:
-      - "{{ prometheus_port }}:9090"
+      - "{{ prometheus_port }}:{{ prometheus_port }}"
     volumes:
-      - {{ prometheus_config_dir }}:/etc/prometheus
-      - {{ prometheus_data_dir }}:/prometheus
-      - ./prometheus-entrypoint.sh:/entrypoint.sh:ro
+      - prometheus_config:/etc/prometheus
+      - prometheus_data:/prometheus
+      - "{{ prometheus_config_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "{{ install_dir }}/entrypoint.sh:/entrypoint.sh:ro"
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     deploy:
       resources:
         limits:
@@ -67,9 +69,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/metrics || exit 1"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:{{ prometheus_port }}/-/healthy"]
       interval: {{ health_check_interval }}
       timeout: {{ health_check_timeout }}
       retries: {{ health_check_retries }}
-      start_period: 30s
-    entrypoint: ["/bin/sh", "/entrypoint.sh"] 
+
+volumes:
+  prometheus_config:
+  prometheus_data:

@@ -66,7 +66,7 @@ None.
 
 ```yaml
 - hosts: monitoring_servers
-  become: true
+  become: yes
   roles:
     - role: prometheus_monitoring
       vars:

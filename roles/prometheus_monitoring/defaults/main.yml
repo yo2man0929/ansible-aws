@@ -9,8 +9,17 @@ node_exporter_version: "v1.8.1"
 cadvisor_version: "v0.47.2"
 prometheus_version: "v2.52.0"
 
-# Installation directory
-install_dir: "/home/ubuntu/prometheus-monitoring"
+# Installation directory - based on OS detection
+# Default paths for different distributions
+default_home_ubuntu: "/home/ubuntu"
+default_home_ec2_user: "/home/ec2-user"
+
+
+# Installation directory - will be overridden in tasks
+# For local installation, use user's home directory
+install_dir: "{{ ansible_env.HOME }}/prom-monitoring"
+
+
 
 # Prometheus configuration
 prometheus_config_dir: "{{ install_dir }}/config"

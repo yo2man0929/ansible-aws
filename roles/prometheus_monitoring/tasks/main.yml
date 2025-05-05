@@ -38,6 +38,17 @@
     msg: "Warning: Docker Compose version {{ docker_compose_version_check.stdout }} is lower than recommended {{ docker_compose_version }}. Consider upgrading."
   when: docker_compose_check.rc == 0 and docker_compose_version_check.stdout is version(docker_compose_version, '<')
 
+- name: Detect OS and set home directory
+  set_fact:
+    install_dir: "{{ default_home_ubuntu }}/prom-monitoring"
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Set home directory for Amazon Linux
+  set_fact:
+    install_dir: "{{ default_home_ec2_user }}/prom-monitoring"
+  when: ansible_distribution == 'Amazon'
+
+
 - name: Check if container node-exporter is already running
   shell: docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -q '^node-exporter$'
   register: node_exporter_check
@@ -64,28 +75,68 @@
     path: "{{ install_dir }}"
     state: directory
     mode: '0755'
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
 
 - name: Ensure Prometheus configuration directory exists
   file:
     path: "{{ prometheus_config_dir }}"
     state: directory
-    mode: '0755'
-  become: "{{ ansible_connection != 'local' }}"
+    mode: '0777'
+
+  become: no
 
 - name: Ensure Prometheus data directory exists
   file:
     path: "{{ prometheus_data_dir }}"
     state: directory
+    mode: '0777'
+
+  become: no
+
+- name: Check directory permissions (debug)
+  shell: |
+    ls -la "{{ prometheus_config_dir }}"
+    id
+  register: dir_perms
+  become: no
+
+- name: Display directory permissions (debug)
+  debug:
+    var: dir_perms.stdout_lines
+
+- name: Create Prometheus configuration file
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    mode: '0666'
+
+  become: no
+  notify: Restart Prometheus monitoring stack
+
+- name: Create update-prometheus-config script
+  template:
+    src: update-prometheus-config.sh.j2
+    dest: "{{ install_dir }}/update-prometheus-config.sh"
     mode: '0755'
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
+
+- name: Execute update-prometheus-config script to collect EC2 metadata
+  shell: "{{ install_dir }}/update-prometheus-config.sh"
+  register: update_config_result
+  become: no
+  changed_when: update_config_result.rc == 0
+
+- name: Display update-prometheus-config script output
+  debug:
+    var: update_config_result.stdout_lines
+  when: update_config_result is defined
 
 - name: Create prometheus-entrypoint.sh script
   template:
     src: prometheus-entrypoint.sh.j2
-    dest: "{{ install_dir }}/prometheus-entrypoint.sh"
+    dest: "{{ install_dir }}/entrypoint.sh"
     mode: '0755'
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
   notify: Restart Prometheus monitoring stack
 
 - name: Create docker-compose.yml
@@ -93,23 +144,39 @@
     src: docker-compose.yml.j2
     dest: "{{ install_dir }}/docker-compose.yml"
     mode: '0644'
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
   notify: Restart Prometheus monitoring stack
 
 - name: Stop existing containers if running and force recreate is requested
-  command: docker compose down
+  command: docker compose -p prometheus down -v
   args:
     chdir: "{{ install_dir }}"
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
   when: >
     (node_exporter_check.rc == 0 or cadvisor_check.rc == 0 or prometheus_agent_check.rc == 0) and
     (force_recreate | default(false))
 
+- name: Remove previous nested directory if it exists
+  file:
+    path: "{{ install_dir }}/prometheus-monitoring"
+    state: absent
+  become: yes
+  when: force_recreate | default(false)
+
 - name: Start Prometheus monitoring stack
-  command: docker compose up -d
+  command: docker compose -p prometheus up -d
   args:
     chdir: "{{ install_dir }}"
-  become: "{{ ansible_connection != 'local' }}"
+  become: no
+  when: >
+    node_exporter_check.rc != 0 or 
+    cadvisor_check.rc != 0 or 
+    prometheus_agent_check.rc != 0 or
+    (force_recreate | default(false))
+
+- name: Wait for prometheus container to start (5 seconds)
+  pause:
+    seconds: 5
   when: >
     node_exporter_check.rc != 0 or 
     cadvisor_check.rc != 0 or 
@@ -171,4 +238,4 @@
       - Node Exporter: {{ 'Running' if node_exporter_status is defined and node_exporter_status.status|default(0) == 200 else 'Failed' }}
       - cAdvisor: {{ 'Running' if cadvisor_status is defined and cadvisor_status.status|default(0) == 200 else 'Failed' }}
       - Prometheus Agent: {{ 'Running' if prometheus_status is defined and prometheus_status.status|default(0) == 200 else 'Failed' }}
-  tags: verify 
+  tags: verify

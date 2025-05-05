@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'ec2-node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - target_label: instance_id
+        replacement: "INSTANCE_ID_PLACEHOLDER"
+      - target_label: instance_type
+        replacement: "INSTANCE_TYPE_PLACEHOLDER"
+      - target_label: availability_zone
+        replacement: "AVAILABILITY_ZONE_PLACEHOLDER"
+
+        
+  - job_name: 'ec2-cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    relabel_configs:
+      - target_label: instance_id
+        replacement: "INSTANCE_ID_PLACEHOLDER"
+      - target_label: instance_type
+        replacement: "INSTANCE_TYPE_PLACEHOLDER"
+      - target_label: availability_zone
+        replacement: "AVAILABILITY_ZONE_PLACEHOLDER"
+
+
+{% if prometheus_remote_write_url | length > 0 %}
+remote_write:
+  - url: "{{ prometheus_remote_write_url }}"
+{% endif %} 

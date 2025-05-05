@@ -29,21 +29,15 @@ if [ ! -f "inventory.ini" ]; then
   exit 1
 fi
 
-# Get sudo password if it is in local mac osx
-if [ "$(uname)" == "Darwin" ]; then
-  if [ -z "$ANSIBLE_BECOME_PASS" ]; then
-    read -s -p "Enter sudo password: " SUDO_PASS
-    echo
-    export ANSIBLE_BECOME_PASS="$SUDO_PASS"
-  fi
-fi
 
+# ip_10_120_27_163
+# ip_10_120_20_100 
 # Deploy based on environment
 case "$ENV" in
   prod)
     echo "Deploying Prometheus monitoring to PRODUCTION environment..."
-    ansible-playbook -i inventory.ini playbook_prometheus_monitoring.yml \
-      --tags prod --limit temp --connection ssh  ${FORCE_RECREATE:+--extra-vars "$FORCE_RECREATE"}
+    ansible-playbook -i inventory/aws_ec2.yaml playbook_prometheus_monitoring.yml \
+      --tags prod --limit 'ip_10_120_27_163' --connection ssh -u ubuntu  ${FORCE_RECREATE:+--extra-vars "$FORCE_RECREATE"}
     ;;
   local)
     echo "Deploying Prometheus monitoring to LOCAL environment..."
