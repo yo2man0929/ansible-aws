@@ -5,18 +5,27 @@
 #   ansible-playbook -i inventory.ini prometheus-monitoring-playbook.yml --tags "setup"
 #   ansible-playbook -i inventory.ini prometheus-monitoring-playbook.yml --extra-vars "force_recreate=true"
 
+- name: Deploy local development monitoring
+  hosts: all
+  become: yes
+  vars:
+    prometheus_remote_write_url: "https://prometheus-prod.provenance.ai/api/v1/write"
+    force_recreate: false
+  roles:
+    - role: prometheus_monitoring
+  tags:
+    - monitoring
+    - prometheus
+    - development
+    - prod
+  serial: 10  # Run on 10 hosts in parallel
 
 
 - name: Deploy local development monitoring
   hosts: localhost
-  become: false
+  become: no
   vars:
-    # Local installation without remote write
-    
-    install_dir: "./prometheus-monitoring-local"
     prometheus_remote_write_url: "https://prometheus-prod.example.com/api/v1/write"
-    
-    # Force recreation on updates
     force_recreate: false
   roles:
     - role: prometheus_monitoring
@@ -25,4 +34,4 @@
     - prometheus
     - development
     - local 
-  strategy: free 
+  serial: 10  # Run on 10 hosts in parallel
